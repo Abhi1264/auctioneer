@@ -4,6 +4,11 @@
     "scripts": {
       "build": "go build -o bin/server ./cmd/server",
       "dev": "go run ./cmd/server",
-      "lint": "go vet ./..."
+      "lint": "go vet ./...",
+      "test": "CGO_ENABLED=0 go test ./...",
+      "race": "go test -race ./...",
+      "bench": "go test -bench=. -benchmem ./bench/...",
+      "load": "go run ./bench/loadtest --grpc_addr=127.0.0.1:8081 --requests=1000000 --concurrency=512 --rpc_timeout_ms=500",
+      "test:all": "./scripts/run_all_benchmarks.sh"
     }
   }

@@ -1,159 +1,74 @@
-# Turborepo starter
+# Auction API
 
-This Turborepo starter is maintained by the Turborepo core team.
+High-throughput auction engine in Go + Redis with:
+- gRPC bid ingest (`/auction.v1.AuctionService/PlaceBid`)
+- WebSocket fanout (`/ws?auction_id=<id>`)
+- Durable event stream (`auc:{auctionId}:events`)
+- Idempotent bid processing via Redis Lua
 
-## Using this example
+## Local Run
 
-Run the following command:
+1. Start Redis (`127.0.0.1:6379` by default).
+2. Run API:
 
-```sh
-npx create-turbo@latest
+```bash
+pnpm --filter api dev
 ```
 
-## What's inside?
+3. Health and metrics:
+   - `GET /healthz`
+   - `GET /readyz`
+   - `GET /metrics`
 
-This Turborepo includes the following packages/apps:
+## Load Test
 
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```bash
+pnpm --filter api load
 ```
 
-Without global `turbo`, use your package manager:
+The load runner sends 1,000,000 bids by default and prints total successes, errors, elapsed time, and throughput.
 
-```sh
-cd my-turborepo
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+## Benchmark
+
+```bash
+REDIS_ADDR=127.0.0.1:6379 pnpm --filter api bench
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## Key Config
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+- `AUCTION_GRPC_ADDR` (default `:8081`)
+- `AUCTION_HTTP_ADDR` (default `:8080`)
+- `REDIS_ADDRS` (comma-separated, default `127.0.0.1:6379`)
+- `REDIS_POOL_SIZE` (default `256`)
+- `MAX_INFLIGHT_BIDS` (default `100000`)
+- `MAX_WS_QUEUE_DEPTH` (default `2048`)
+- `BID_IDEMPOTENCY_TTL` (default `10m`)
+- `BREAKER_FAILURE_THRESHOLD` (default `20`)
+- `BREAKER_OPEN_FOR` (default `500ms`)
+- `GOGC` (default `100`)
+- `GOMEMLIMIT_BYTES` (default `0`, disabled)
 
-```sh
-turbo build --filter=docs
-```
+## Performance Tuning Checklist
 
-Without global `turbo`:
+- Increase `REDIS_POOL_SIZE` until Redis latency no longer decreases.
+- Keep `MAX_INFLIGHT_BIDS` bounded to avoid scheduler and queue collapse.
+- Tune `GOGC` and `GOMEMLIMIT_BYTES` together; watch p99 latency, RSS, and GC pauses.
+- Monitor:
+  - `auction_bid_requests_total`
+  - `auction_bid_latency_seconds`
+  - `auction_inflight_bids`
+  - `auction_redis_breaker_open`
+  - `auction_ws_dropped_clients_total`
+  - `auction_stream_dispatch_lag_ms`
 
-```sh
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+## Failure Recovery
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- If Redis breaker is open:
+  - Fail fast on bid writes.
+  - Keep reads and WS connections alive where possible.
+  - Recover by restoring Redis health and observing breaker close.
+- If WS misses events:
+  - Backfill from Streams using last known stream ID.
+- During shard migration:
+  - Use dual-write and verify parity before cutover.
+  - Keep rollback path to previous shard routing map.
