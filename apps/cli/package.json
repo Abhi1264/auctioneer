@@ -1,0 +1,9 @@
+{
+    "name": "cli",
+    "private": true,
+    "scripts": {
+      "build": "go build -o bin/cli ./cmd/cli",
+      "dev": "go run ./cmd/cli",
+      "lint": "go vet ./..."
+    }
+  }

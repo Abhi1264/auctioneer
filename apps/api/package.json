@@ -1,0 +1,9 @@
+{
+    "name": "api",
+    "private": true,
+    "scripts": {
+      "build": "go build -o bin/server ./cmd/server",
+      "dev": "go run ./cmd/server",
+      "lint": "go vet ./..."
+    }
+  }
