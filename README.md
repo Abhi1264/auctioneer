@@ -1,53 +1,42 @@
-# Auction API
+# Auctioneer
 
-High-throughput auction engine in Go + Redis:
+Go auction engine backed by Redis. Bids are applied atomically with a Lua script (idempotent on `bid_id`). Accepted bids are written to a Redis stream and fanned out over WebSockets.
 
-- gRPC bid ingest (`PlaceBid` / `CreateAuction`)
-- WebSocket fanout (`/ws?auction_id=<id>`)
-- Durable event stream (`auc:{auctionId}:events`)
-- Idempotent bid processing via Redis Lua
+## Run
 
-## Local run
-
-1. Start Redis on `127.0.0.1:6379`.
-2. Start the API:
+Redis on `127.0.0.1:6379`, then:
 
 ```bash
 pnpm --filter api dev
 ```
 
-Or from the repo root: `pnpm dev:api`.
+From the repo root, `pnpm dev:api` does the same. `pnpm dev` also starts the dashboard and CLI stubs.
 
-3. Check:
-   - `GET /healthz`
-   - `GET /readyz` (fails until Redis is up)
-   - `GET /metrics`
+| Endpoint | Port |
+|---|---|
+| gRPC `CreateAuction` / `PlaceBid` | `:8081` |
+| `GET /healthz` | `:8080` |
+| `GET /readyz` | `:8080` (Redis must be up) |
+| `GET /metrics` | `:8080` |
+| `GET /ws?auction_id=<id>` | `:8080` |
 
-`pnpm dev` also starts the dashboard and CLI stubs. Use `dev:api` if you only want the server.
+`PlaceBid` reasons include `accepted`, `bid_too_low`, `auction_ended`, `auction_closed`, and `auction_not_found`. Duplicate `bid_id`s return the cached result with `duplicate=true`.
 
-## Load test
-
-Needs Redis and the API already running:
-
-```bash
-pnpm --filter api load
-```
-
-Defaults: 1,000,000 bids, 512 workers, `127.0.0.1:8081`. Override with flags on `go run ./bench/loadtest`.
-
-To start Redis, the API, wait for `/readyz`, then run tests, bench, and load in one shot:
+## Test
 
 ```bash
-pnpm --filter api test:all
+pnpm --filter api test
 ```
 
-## Benchmark
+Unit tests use miniredis. A live Redis instance is only required for integration tests, benchmarks, and load:
 
 ```bash
 REDIS_ADDR=127.0.0.1:6379 pnpm --filter api bench
+pnpm --filter api load          # API must already be running
+pnpm --filter api test:all      # starts Redis + API, then test/bench/load
 ```
 
-`REDIS_ADDRS` (comma-separated) is also accepted.
+Load defaults: 1,000,000 bids, 512 workers, `127.0.0.1:8081`.
 
 ## Config
 
@@ -65,4 +54,4 @@ REDIS_ADDR=127.0.0.1:6379 pnpm --filter api bench
 | `BREAKER_FAILURE_THRESHOLD` | `20` |
 | `BREAKER_OPEN_FOR` | `500ms` |
 
-When the Redis breaker is open, bid writes fail fast. WebSocket connections stay up. Dropped clients are counted on `auction_ws_dropped_clients_total`.
+If Redis is unhealthy, the breaker fails bid writes fast. WebSocket connections stay up; clients dropped under backpressure are counted on `auction_ws_dropped_clients_total`.

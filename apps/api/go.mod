@@ -3,11 +3,14 @@ module github.com/Abhi1264/auctioneer/apps/api
 go 1.25.0
 
 require (
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.18.0
 	google.golang.org/grpc v1.79.3
 )
+
+require github.com/yuin/gopher-lua v1.1.1 // indirect
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

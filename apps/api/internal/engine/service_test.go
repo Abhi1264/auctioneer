@@ -2,113 +2,101 @@ package engine
 
 import (
 	"context"
-	"strconv"
-	"sync"
+	"errors"
 	"testing"
 	"time"
 )
 
-type memoryStore struct {
-	mu      sync.Mutex
-	price   int64
-	version int64
-	winner  string
-	seen    map[string]PlaceBidResult
+type recordingStore struct {
+	created CreateAuctionRequest
+	bids    []PlaceBidRequest
 }
 
-func (m *memoryStore) CreateAuction(context.Context, CreateAuctionRequest) error { return nil }
-func (m *memoryStore) ReadEvents(context.Context, map[string]string, int64) ([]AuctionEvent, error) {
+func (r *recordingStore) CreateAuction(_ context.Context, req CreateAuctionRequest) error {
+	r.created = req
+	return nil
+}
+
+func (r *recordingStore) PlaceBid(_ context.Context, req PlaceBidRequest) (PlaceBidResult, error) {
+	r.bids = append(r.bids, req)
+	return PlaceBidResult{Accepted: true, Reason: "accepted"}, nil
+}
+
+func (r *recordingStore) ReadEvents(context.Context, map[string]string, int64) ([]AuctionEvent, error) {
 	return nil, nil
 }
 
-func (m *memoryStore) PlaceBid(_ context.Context, req PlaceBidRequest) (PlaceBidResult, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if cached, ok := m.seen[req.BidID]; ok {
-		cached.Duplicate = true
-		return cached, nil
-	}
-	if req.AmountCents <= m.price {
-		res := PlaceBidResult{
-			Accepted:        false,
-			Reason:          "bid_too_low",
-			CurrentPrice:    m.price,
-			WinnerUserID:    m.winner,
-			Version:         m.version,
-			ServerUnixMilli: time.Now().UnixMilli(),
-		}
-		m.seen[req.BidID] = res
-		return res, nil
-	}
-	m.version++
-	m.price = req.AmountCents
-	m.winner = req.UserID
-	res := PlaceBidResult{
-		Accepted:        true,
-		Reason:          "accepted",
-		CurrentPrice:    m.price,
-		WinnerUserID:    m.winner,
-		Version:         m.version,
-		ServerUnixMilli: time.Now().UnixMilli(),
-	}
-	m.seen[req.BidID] = res
-	return res, nil
-}
+func TestServicePlaceBidValidation(t *testing.T) {
+	store := &recordingStore{}
+	svc := NewService(store, time.Minute)
 
-func TestServiceValidation(t *testing.T) {
-	svc := NewService(&memoryStore{seen: map[string]PlaceBidResult{}}, 0)
-	_, err := svc.PlaceBid(context.Background(), PlaceBidRequest{})
-	if err == nil {
-		t.Fatal("expected error for empty request")
+	tests := []struct {
+		name string
+		req  PlaceBidRequest
+		want error
+	}{
+		{name: "missing auction id", req: PlaceBidRequest{BidID: "b", UserID: "u", AmountCents: 1}, want: ErrInvalidAuctionID},
+		{name: "missing bid id", req: PlaceBidRequest{AuctionID: "a", UserID: "u", AmountCents: 1}, want: ErrInvalidBidID},
+		{name: "missing user id", req: PlaceBidRequest{AuctionID: "a", BidID: "b", AmountCents: 1}, want: ErrInvalidUserID},
+		{name: "zero amount", req: PlaceBidRequest{AuctionID: "a", BidID: "b", UserID: "u", AmountCents: 0}, want: ErrInvalidAmount},
+		{name: "negative amount", req: PlaceBidRequest{AuctionID: "a", BidID: "b", UserID: "u", AmountCents: -1}, want: ErrInvalidAmount},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.PlaceBid(context.Background(), tc.req)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
+			}
+			if len(store.bids) != 0 {
+				t.Fatal("invalid request should not reach the store")
+			}
+		})
 	}
 }
 
-func TestServiceIdempotency(t *testing.T) {
-	svc := NewService(&memoryStore{seen: map[string]PlaceBidResult{}}, 0)
-	req := PlaceBidRequest{
-		AuctionID:   "a1",
-		BidID:       "b1",
-		UserID:      "u1",
-		AmountCents: 1000,
-	}
-	first, err := svc.PlaceBid(context.Background(), req)
+func TestServicePlaceBidForwards(t *testing.T) {
+	store := &recordingStore{}
+	svc := NewService(store, time.Minute)
+	req := PlaceBidRequest{AuctionID: "a1", BidID: "b1", UserID: "u1", AmountCents: 1000}
+	res, err := svc.PlaceBid(context.Background(), req)
 	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
+		t.Fatal(err)
 	}
-	second, err := svc.PlaceBid(context.Background(), req)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if !first.Accepted || !second.Duplicate {
-		t.Fatalf("expected accepted then duplicate, got %+v and %+v", first, second)
+	if !res.Accepted || len(store.bids) != 1 || store.bids[0] != req {
+		t.Fatalf("forward mismatch: res=%+v store=%+v", res, store.bids)
 	}
 }
 
-func TestMonotonicWinnerInvariantUnderConcurrency(t *testing.T) {
-	store := &memoryStore{seen: map[string]PlaceBidResult{}}
-	svc := NewService(store, 0)
-
-	const workers = 200
-	var wg sync.WaitGroup
-	wg.Add(workers)
-	for i := 0; i < workers; i++ {
-		amount := int64(1000 + i)
-		go func(idx int, bidAmount int64) {
-			defer wg.Done()
-			_, _ = svc.PlaceBid(context.Background(), PlaceBidRequest{
-				AuctionID:   "a1",
-				BidID:       "b-" + strconv.Itoa(idx),
-				UserID:      "u",
-				AmountCents: bidAmount,
-			})
-		}(i, amount)
+func TestServiceCreateAuctionValidation(t *testing.T) {
+	store := &recordingStore{}
+	svc := NewService(store, time.Minute)
+	if err := svc.CreateAuction(context.Background(), CreateAuctionRequest{}); !errors.Is(err, ErrInvalidAuctionID) {
+		t.Fatalf("got %v, want %v", err, ErrInvalidAuctionID)
 	}
-	wg.Wait()
+}
 
-	if store.version <= 0 {
-		t.Fatalf("expected version > 0, got %d", store.version)
+func TestServiceCreateAuctionDefaultDuration(t *testing.T) {
+	store := &recordingStore{}
+	svc := NewService(store, 5*time.Minute)
+	before := time.Now().UTC()
+	if err := svc.CreateAuction(context.Background(), CreateAuctionRequest{AuctionID: "a1", OpeningPriceCents: 10}); err != nil {
+		t.Fatal(err)
 	}
-	if store.price < 1000 {
-		t.Fatalf("expected price >= 1000, got %d", store.price)
+	after := time.Now().UTC()
+	got := store.created.EndAt
+	if got.Before(before.Add(5*time.Minute-time.Second)) || got.After(after.Add(5*time.Minute+time.Second)) {
+		t.Fatalf("EndAt %s not around now+5m", got)
+	}
+}
+
+func TestServiceCreateAuctionKeepsEndAt(t *testing.T) {
+	store := &recordingStore{}
+	svc := NewService(store, time.Hour)
+	end := time.Now().UTC().Add(2 * time.Hour)
+	if err := svc.CreateAuction(context.Background(), CreateAuctionRequest{AuctionID: "a1", EndAt: end}); err != nil {
+		t.Fatal(err)
+	}
+	if !store.created.EndAt.Equal(end) {
+		t.Fatalf("EndAt mutated: got %s want %s", store.created.EndAt, end)
 	}
 }

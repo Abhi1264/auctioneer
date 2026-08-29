@@ -18,7 +18,17 @@ func (c *Client) close() {
 	if c.closeFn != nil {
 		c.closeFn()
 	}
-	_ = c.conn.Close()
+	if c.conn != nil {
+		_ = c.conn.Close()
+	}
+}
+
+func NewBufferedClient(queueDepth int) *Client {
+	return &Client{send: make(chan []byte, queueDepth)}
+}
+
+func (c *Client) Messages() <-chan []byte {
+	return c.send
 }
 
 type Handler struct {
