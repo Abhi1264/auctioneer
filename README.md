@@ -10,7 +10,7 @@ Redis on `127.0.0.1:6379`, then:
 pnpm --filter api dev
 ```
 
-From the repo root, `pnpm dev:api` does the same. `pnpm dev` also starts the dashboard and CLI stubs.
+From the repo root, `pnpm dev:api` does the same. `pnpm dev` also starts the dashboard.
 
 | Endpoint | Port |
 |---|---|

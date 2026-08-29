@@ -1,20 +1,40 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Atkinson_Hyperlegible, IBM_Plex_Mono, Source_Serif_4 } from "next/font/google";
+
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const body = Atkinson_Hyperlegible({
+  variable: "--font-body",
   subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const display = Source_Serif_4({
+  variable: "--font-display",
   subsets: ["latin"],
+  weight: ["600", "700"],
+  display: "swap",
+});
+
+const mono = IBM_Plex_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Auctioneer",
-  description: "Auction engine dashboard",
+  title: "Auctioneer · Engine Inspection",
+  description:
+    "Run the Auctioneer Go test suite and read a plain-language report of what passed, failed, or was skipped.",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#E4E9EE" },
+    { media: "(prefers-color-scheme: dark)", color: "#15202B" },
+  ],
 };
 
 export default function RootLayout({
@@ -25,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${body.variable} ${display.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
