@@ -30,30 +30,79 @@ type Config struct {
 }
 
 func Load() (Config, error) {
+	var err error
+	intVal := func(key string, fallback int) int {
+		v, e := getEnvInt(key, fallback)
+		if err == nil {
+			err = e
+		}
+		return v
+	}
+	durVal := func(key string, fallback time.Duration) time.Duration {
+		v, e := getEnvDuration(key, fallback)
+		if err == nil {
+			err = e
+		}
+		return v
+	}
+
+	int64Val := func(key string, fallback int64) int64 {
+		v, e := getEnvInt64(key, fallback)
+		if err == nil {
+			err = e
+		}
+		return v
+	}
+
 	cfg := Config{
 		GRPCAddress:             getEnv("AUCTION_GRPC_ADDR", ":8081"),
 		HTTPAddress:             getEnv("AUCTION_HTTP_ADDR", ":8080"),
-		RedisAddresses:          strings.Split(getEnv("REDIS_ADDRS", "127.0.0.1:6379"), ","),
+		RedisAddresses:          splitAddrs(getEnv("REDIS_ADDRS", "127.0.0.1:6379")),
 		RedisPassword:           getEnv("REDIS_PASSWORD", ""),
-		RedisDB:                 getEnvInt("REDIS_DB", 0),
-		RedisPoolSize:           getEnvInt("REDIS_POOL_SIZE", 256),
-		BidIdempotencyTTL:       getEnvDuration("BID_IDEMPOTENCY_TTL", 10*time.Minute),
-		DefaultAuctionDuration:  getEnvDuration("DEFAULT_AUCTION_DURATION", 10*time.Minute),
-		StreamReadCount:         int64(getEnvInt("STREAM_READ_COUNT", 256)),
-		MaxInFlightBids:         getEnvInt("MAX_INFLIGHT_BIDS", 100000),
-		MaxWSQueueDepth:         getEnvInt("MAX_WS_QUEUE_DEPTH", 2048),
-		BreakerFailureThreshold: getEnvInt("BREAKER_FAILURE_THRESHOLD", 20),
-		BreakerOpenFor:          getEnvDuration("BREAKER_OPEN_FOR", 500*time.Millisecond),
+		RedisDB:                 intVal("REDIS_DB", 0),
+		RedisPoolSize:           intVal("REDIS_POOL_SIZE", 256),
+		BidIdempotencyTTL:       durVal("BID_IDEMPOTENCY_TTL", 10*time.Minute),
+		DefaultAuctionDuration:  durVal("DEFAULT_AUCTION_DURATION", 10*time.Minute),
+		StreamReadCount:         int64(intVal("STREAM_READ_COUNT", 256)),
+		MaxInFlightBids:         intVal("MAX_INFLIGHT_BIDS", 100000),
+		MaxWSQueueDepth:         intVal("MAX_WS_QUEUE_DEPTH", 2048),
+		BreakerFailureThreshold: intVal("BREAKER_FAILURE_THRESHOLD", 20),
+		BreakerOpenFor:          durVal("BREAKER_OPEN_FOR", 500*time.Millisecond),
 		LogLevel:                parseLevel(getEnv("LOG_LEVEL", "info")),
-		GracefulShutdownTimeout: getEnvDuration("GRACEFUL_SHUTDOWN_TIMEOUT", 10*time.Second),
-		GOGC:                    getEnvInt("GOGC", 100),
-		GoMemLimitBytes:         getEnvInt64("GOMEMLIMIT_BYTES", 0),
+		GracefulShutdownTimeout: durVal("GRACEFUL_SHUTDOWN_TIMEOUT", 10*time.Second),
+		GOGC:                    intVal("GOGC", 100),
+		GoMemLimitBytes:         int64Val("GOMEMLIMIT_BYTES", 0),
 	}
-
-	if len(cfg.RedisAddresses) == 0 || strings.TrimSpace(cfg.RedisAddresses[0]) == "" {
+	if err != nil {
+		return Config{}, err
+	}
+	if len(cfg.RedisAddresses) == 0 {
 		return Config{}, fmt.Errorf("redis address is required")
 	}
 	return cfg, nil
+}
+
+func RedisAddrFromEnv() string {
+	if v := os.Getenv("REDIS_ADDR"); v != "" {
+		return v
+	}
+	addrs := splitAddrs(os.Getenv("REDIS_ADDRS"))
+	if len(addrs) == 0 {
+		return ""
+	}
+	return addrs[0]
+}
+
+func splitAddrs(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func getEnv(key, fallback string) string {
@@ -63,40 +112,40 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getEnvInt(key string, fallback int) int {
+func getEnvInt(key string, fallback int) (int, error) {
 	raw := os.Getenv(key)
 	if raw == "" {
-		return fallback
+		return fallback, nil
 	}
 	v, err := strconv.Atoi(raw)
 	if err != nil {
-		return fallback
+		return 0, fmt.Errorf("%s: %w", key, err)
 	}
-	return v
+	return v, nil
 }
 
-func getEnvDuration(key string, fallback time.Duration) time.Duration {
+func getEnvDuration(key string, fallback time.Duration) (time.Duration, error) {
 	raw := os.Getenv(key)
 	if raw == "" {
-		return fallback
+		return fallback, nil
 	}
 	v, err := time.ParseDuration(raw)
 	if err != nil {
-		return fallback
+		return 0, fmt.Errorf("%s: %w", key, err)
 	}
-	return v
+	return v, nil
 }
 
-func getEnvInt64(key string, fallback int64) int64 {
+func getEnvInt64(key string, fallback int64) (int64, error) {
 	raw := os.Getenv(key)
 	if raw == "" {
-		return fallback
+		return fallback, nil
 	}
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		return fallback
+		return 0, fmt.Errorf("%s: %w", key, err)
 	}
-	return v
+	return v, nil
 }
 
 func parseLevel(raw string) slog.Level {

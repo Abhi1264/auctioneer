@@ -44,18 +44,17 @@ func NewServer(addr string, svc *eng.Service, maxInFlight int, metrics *obs.Metr
 
 func (a *API) PlaceBid(ctx context.Context, req *auctionv1.PlaceBidRequest) (*auctionv1.PlaceBidResponse, error) {
 	start := time.Now()
-	if a.metrics != nil {
-		a.metrics.InFlightBids.Inc()
-		defer a.metrics.InFlightBids.Dec()
-		defer obs.ObserveLatency(a.metrics.BidLatencySeconds, start)
-	}
+	a.metrics.InFlightBids.Inc()
+	defer a.metrics.InFlightBids.Dec()
+	defer func() {
+		a.metrics.BidLatencySeconds.Observe(time.Since(start).Seconds())
+	}()
+
 	select {
 	case a.inflightSem <- struct{}{}:
 		defer func() { <-a.inflightSem }()
 	default:
-		if a.metrics != nil {
-			a.metrics.BidRequestsTotal.WithLabelValues("overloaded").Inc()
-		}
+		a.metrics.BidRequestsTotal.WithLabelValues("overloaded").Inc()
 		return nil, status.Error(codes.ResourceExhausted, "server overloaded")
 	}
 
@@ -63,19 +62,16 @@ func (a *API) PlaceBid(ctx context.Context, req *auctionv1.PlaceBidRequest) (*au
 	defer cancel()
 
 	res, err := a.svc.PlaceBid(ctx, eng.PlaceBidRequest{
-		AuctionID:       req.GetAuctionId(),
-		BidID:           req.GetBidId(),
-		UserID:          req.GetUserId(),
-		AmountCents:     req.GetAmountCents(),
-		ClientUnixMilli: req.GetClientTsMs(),
+		AuctionID:   req.GetAuctionId(),
+		BidID:       req.GetBidId(),
+		UserID:      req.GetUserId(),
+		AmountCents: req.GetAmountCents(),
 	})
 	if err != nil {
-		if a.metrics != nil {
-			a.metrics.BidRequestsTotal.WithLabelValues("error").Inc()
-		}
-		if a.breakerOpen != nil && a.breakerOpen() {
+		a.metrics.BidRequestsTotal.WithLabelValues("error").Inc()
+		if a.breakerOpen() {
 			a.metrics.RedisBreakerOpen.Set(1)
-		} else if a.metrics != nil {
+		} else {
 			a.metrics.RedisBreakerOpen.Set(0)
 		}
 		switch {
@@ -89,12 +85,10 @@ func (a *API) PlaceBid(ctx context.Context, req *auctionv1.PlaceBidRequest) (*au
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 	}
-	if a.metrics != nil {
-		if res.Accepted {
-			a.metrics.BidRequestsTotal.WithLabelValues("accepted").Inc()
-		} else {
-			a.metrics.BidRequestsTotal.WithLabelValues("rejected").Inc()
-		}
+	if res.Accepted {
+		a.metrics.BidRequestsTotal.WithLabelValues("accepted").Inc()
+	} else {
+		a.metrics.BidRequestsTotal.WithLabelValues("rejected").Inc()
 	}
 	return &auctionv1.PlaceBidResponse{
 		Accepted:          res.Accepted,
@@ -109,14 +103,14 @@ func (a *API) PlaceBid(ctx context.Context, req *auctionv1.PlaceBidRequest) (*au
 }
 
 func (a *API) CreateAuction(ctx context.Context, req *auctionv1.CreateAuctionRequest) (*auctionv1.Empty, error) {
-	duration := time.Duration(req.GetDurationSec()) * time.Second
-	if duration <= 0 {
-		duration = 10 * time.Minute
+	var endAt time.Time
+	if sec := req.GetDurationSec(); sec > 0 {
+		endAt = time.Now().UTC().Add(time.Duration(sec) * time.Second)
 	}
 	if err := a.svc.CreateAuction(ctx, eng.CreateAuctionRequest{
 		AuctionID:         req.GetAuctionId(),
 		OpeningPriceCents: req.GetOpeningPriceCents(),
-		EndAt:             time.Now().UTC().Add(duration),
+		EndAt:             endAt,
 	}); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}

@@ -26,7 +26,7 @@ func main() {
 	)
 	flag.Parse()
 
-	conn, err := grpc.Dial(
+	conn, err := grpc.NewClient(
 		*grpcAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
@@ -65,7 +65,6 @@ func main() {
 					BidId:       fmt.Sprintf("load-%d-%d", workerID, n),
 					UserId:      fmt.Sprintf("u-%d", workerID),
 					AmountCents: int64(100 + n),
-					ClientTsMs:  time.Now().UnixMilli(),
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*rpcTimeoutMs)*time.Millisecond)
 				_, err := client.PlaceBid(ctx, req)

@@ -1,32 +1,45 @@
 # Auction API
 
-High-throughput auction engine in Go + Redis with:
-- gRPC bid ingest (`/auction.v1.AuctionService/PlaceBid`)
+High-throughput auction engine in Go + Redis:
+
+- gRPC bid ingest (`PlaceBid` / `CreateAuction`)
 - WebSocket fanout (`/ws?auction_id=<id>`)
 - Durable event stream (`auc:{auctionId}:events`)
 - Idempotent bid processing via Redis Lua
 
-## Local Run
+## Local run
 
-1. Start Redis (`127.0.0.1:6379` by default).
-2. Run API:
+1. Start Redis on `127.0.0.1:6379`.
+2. Start the API:
 
 ```bash
 pnpm --filter api dev
 ```
 
-3. Health and metrics:
+Or from the repo root: `pnpm dev:api`.
+
+3. Check:
    - `GET /healthz`
-   - `GET /readyz`
+   - `GET /readyz` (fails until Redis is up)
    - `GET /metrics`
 
-## Load Test
+`pnpm dev` also starts the dashboard and CLI stubs. Use `dev:api` if you only want the server.
+
+## Load test
+
+Needs Redis and the API already running:
 
 ```bash
 pnpm --filter api load
 ```
 
-The load runner sends 1,000,000 bids by default and prints total successes, errors, elapsed time, and throughput.
+Defaults: 1,000,000 bids, 512 workers, `127.0.0.1:8081`. Override with flags on `go run ./bench/loadtest`.
+
+To start Redis, the API, wait for `/readyz`, then run tests, bench, and load in one shot:
+
+```bash
+pnpm --filter api test:all
+```
 
 ## Benchmark
 
@@ -34,41 +47,22 @@ The load runner sends 1,000,000 bids by default and prints total successes, erro
 REDIS_ADDR=127.0.0.1:6379 pnpm --filter api bench
 ```
 
-## Key Config
+`REDIS_ADDRS` (comma-separated) is also accepted.
 
-- `AUCTION_GRPC_ADDR` (default `:8081`)
-- `AUCTION_HTTP_ADDR` (default `:8080`)
-- `REDIS_ADDRS` (comma-separated, default `127.0.0.1:6379`)
-- `REDIS_POOL_SIZE` (default `256`)
-- `MAX_INFLIGHT_BIDS` (default `100000`)
-- `MAX_WS_QUEUE_DEPTH` (default `2048`)
-- `BID_IDEMPOTENCY_TTL` (default `10m`)
-- `BREAKER_FAILURE_THRESHOLD` (default `20`)
-- `BREAKER_OPEN_FOR` (default `500ms`)
-- `GOGC` (default `100`)
-- `GOMEMLIMIT_BYTES` (default `0`, disabled)
+## Config
 
-## Performance Tuning Checklist
+| Variable | Default |
+|---|---|
+| `AUCTION_GRPC_ADDR` | `:8081` |
+| `AUCTION_HTTP_ADDR` | `:8080` |
+| `REDIS_ADDRS` | `127.0.0.1:6379` |
+| `REDIS_POOL_SIZE` | `256` |
+| `MAX_INFLIGHT_BIDS` | `100000` |
+| `MAX_WS_QUEUE_DEPTH` | `2048` |
+| `DEFAULT_AUCTION_DURATION` | `10m` |
+| `STREAM_READ_COUNT` | `256` |
+| `BID_IDEMPOTENCY_TTL` | `10m` |
+| `BREAKER_FAILURE_THRESHOLD` | `20` |
+| `BREAKER_OPEN_FOR` | `500ms` |
 
-- Increase `REDIS_POOL_SIZE` until Redis latency no longer decreases.
-- Keep `MAX_INFLIGHT_BIDS` bounded to avoid scheduler and queue collapse.
-- Tune `GOGC` and `GOMEMLIMIT_BYTES` together; watch p99 latency, RSS, and GC pauses.
-- Monitor:
-  - `auction_bid_requests_total`
-  - `auction_bid_latency_seconds`
-  - `auction_inflight_bids`
-  - `auction_redis_breaker_open`
-  - `auction_ws_dropped_clients_total`
-  - `auction_stream_dispatch_lag_ms`
-
-## Failure Recovery
-
-- If Redis breaker is open:
-  - Fail fast on bid writes.
-  - Keep reads and WS connections alive where possible.
-  - Recover by restoring Redis health and observing breaker close.
-- If WS misses events:
-  - Backfill from Streams using last known stream ID.
-- During shard migration:
-  - Use dual-write and verify parity before cutover.
-  - Keep rollback path to previous shard routing map.
+When the Redis breaker is open, bid writes fail fast. WebSocket connections stay up. Dropped clients are counted on `auction_ws_dropped_clients_total`.

@@ -56,7 +56,7 @@ func (m *memoryStore) PlaceBid(_ context.Context, req PlaceBidRequest) (PlaceBid
 }
 
 func TestServiceValidation(t *testing.T) {
-	svc := NewService(&memoryStore{seen: map[string]PlaceBidResult{}})
+	svc := NewService(&memoryStore{seen: map[string]PlaceBidResult{}}, 0)
 	_, err := svc.PlaceBid(context.Background(), PlaceBidRequest{})
 	if err == nil {
 		t.Fatal("expected error for empty request")
@@ -64,7 +64,7 @@ func TestServiceValidation(t *testing.T) {
 }
 
 func TestServiceIdempotency(t *testing.T) {
-	svc := NewService(&memoryStore{seen: map[string]PlaceBidResult{}})
+	svc := NewService(&memoryStore{seen: map[string]PlaceBidResult{}}, 0)
 	req := PlaceBidRequest{
 		AuctionID:   "a1",
 		BidID:       "b1",
@@ -86,7 +86,7 @@ func TestServiceIdempotency(t *testing.T) {
 
 func TestMonotonicWinnerInvariantUnderConcurrency(t *testing.T) {
 	store := &memoryStore{seen: map[string]PlaceBidResult{}}
-	svc := NewService(store)
+	svc := NewService(store, 0)
 
 	const workers = 200
 	var wg sync.WaitGroup

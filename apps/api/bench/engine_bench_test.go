@@ -2,7 +2,6 @@ package bench
 
 import (
 	"context"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -12,9 +11,9 @@ import (
 )
 
 func BenchmarkRedisPlaceBid(b *testing.B) {
-	addr := os.Getenv("REDIS_ADDR")
+	addr := config.RedisAddrFromEnv()
 	if addr == "" {
-		b.Skip("set REDIS_ADDR for benchmark")
+		b.Skip("set REDIS_ADDR or REDIS_ADDRS for benchmark")
 	}
 	cfg := config.Config{
 		RedisAddresses:          []string{addr},
@@ -30,7 +29,7 @@ func BenchmarkRedisPlaceBid(b *testing.B) {
 	}
 	defer router.Close()
 	store := engine.NewRedisStore(router, cfg)
-	svc := engine.NewService(store)
+	svc := engine.NewService(store, 0)
 
 	ctx := context.Background()
 	auctionID := "bench-auction"
@@ -43,8 +42,8 @@ func BenchmarkRedisPlaceBid(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	
+	for i := 0; b.Loop(); i++ {
 		_, err := svc.PlaceBid(ctx, engine.PlaceBidRequest{
 			AuctionID:   auctionID,
 			BidID:       "bench-bid-" + strconv.Itoa(i),

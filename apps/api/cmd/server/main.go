@@ -44,11 +44,11 @@ func main() {
 	defer router.Close()
 
 	store := eng.NewRedisStore(router, cfg)
-	service := eng.NewService(store)
+	service := eng.NewService(store, cfg.DefaultAuctionDuration)
 	hub := wsapi.NewHub(cfg.MaxWSQueueDepth, metrics.WsDroppedClients)
 	go hub.Run()
 
-	dispatcher := eng.NewEventDispatcher(store, hub, logger, metrics)
+	dispatcher := eng.NewEventDispatcher(store, hub, logger, metrics, cfg.StreamReadCount)
 	go dispatcher.Run(context.Background())
 
 	grpcSrv, lis, err := grpcapi.NewServer(cfg.GRPCAddress, service, cfg.MaxInFlightBids, metrics, store.BreakerOpen)

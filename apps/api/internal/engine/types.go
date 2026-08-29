@@ -3,11 +3,10 @@ package engine
 import "time"
 
 type PlaceBidRequest struct {
-	AuctionID       string
-	BidID           string
-	UserID          string
-	AmountCents     int64
-	ClientUnixMilli int64
+	AuctionID   string
+	BidID       string
+	UserID      string
+	AmountCents int64
 }
 
 type PlaceBidResult struct {
@@ -25,15 +24,6 @@ type CreateAuctionRequest struct {
 	AuctionID         string
 	OpeningPriceCents int64
 	EndAt             time.Time
-}
-
-type AuctionState struct {
-	AuctionID      string
-	Status         string
-	CurrentPrice   int64
-	WinnerUserID   string
-	Version        int64
-	EndAtUnixMilli int64
 }
 
 type AuctionEvent struct {

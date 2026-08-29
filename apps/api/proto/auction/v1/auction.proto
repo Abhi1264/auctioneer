@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package auction.v1;
-option go_package = "github.com/Abhi1264/auctioneer/apps/api/gen/auction/v1;auctionv1";
+option go_package = "github.com/Abhi1264/auctioneer/apps/api/auction/v1;auctionv1";
 
 service AuctionService {
   rpc CreateAuction(CreateAuctionRequest) returns (Empty);
@@ -19,7 +19,6 @@ message PlaceBidRequest {
   string bid_id = 2;
   string user_id = 3;
   int64 amount_cents = 4;
-  int64 client_ts_ms = 5;
 }
 
 message PlaceBidResponse {

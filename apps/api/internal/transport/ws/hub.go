@@ -84,19 +84,31 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 		case msg := <-h.broadcast:
 			h.mu.RLock()
-			targets := h.clients[msg.auctionID]
-			for client := range targets {
+			var dropped []*Client
+			for client := range h.clients[msg.auctionID] {
 				select {
 				case client.send <- msg.payload:
 				default:
-					if h.dropped != nil {
-						h.dropped.Inc()
-					}
-					client.close()
-					delete(targets, client)
+					h.dropped.Inc()
+					dropped = append(dropped, client)
 				}
 			}
 			h.mu.RUnlock()
+			if len(dropped) == 0 {
+				continue
+			}
+			h.mu.Lock()
+			set := h.clients[msg.auctionID]
+			for _, client := range dropped {
+				if set != nil {
+					delete(set, client)
+				}
+				client.close()
+			}
+			if set != nil && len(set) == 0 {
+				delete(h.clients, msg.auctionID)
+			}
+			h.mu.Unlock()
 		}
 	}
 }

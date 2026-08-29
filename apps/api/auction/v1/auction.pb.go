@@ -87,7 +87,6 @@ type PlaceBidRequest struct {
 	BidId         string                 `protobuf:"bytes,2,opt,name=bid_id,json=bidId,proto3" json:"bid_id,omitempty"`
 	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	AmountCents   int64                  `protobuf:"varint,4,opt,name=amount_cents,json=amountCents,proto3" json:"amount_cents,omitempty"`
-	ClientTsMs    int64                  `protobuf:"varint,5,opt,name=client_ts_ms,json=clientTsMs,proto3" json:"client_ts_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -146,13 +145,6 @@ func (x *PlaceBidRequest) GetUserId() string {
 func (x *PlaceBidRequest) GetAmountCents() int64 {
 	if x != nil {
 		return x.AmountCents
-	}
-	return 0
-}
-
-func (x *PlaceBidRequest) GetClientTsMs() int64 {
-	if x != nil {
-		return x.ClientTsMs
 	}
 	return 0
 }
@@ -303,15 +295,13 @@ const file_auction_v1_auction_proto_rawDesc = "" +
 	"\n" +
 	"auction_id\x18\x01 \x01(\tR\tauctionId\x12.\n" +
 	"\x13opening_price_cents\x18\x02 \x01(\x03R\x11openingPriceCents\x12!\n" +
-	"\fduration_sec\x18\x03 \x01(\x03R\vdurationSec\"\xa5\x01\n" +
+	"\fduration_sec\x18\x03 \x01(\x03R\vdurationSec\"\x83\x01\n" +
 	"\x0fPlaceBidRequest\x12\x1d\n" +
 	"\n" +
 	"auction_id\x18\x01 \x01(\tR\tauctionId\x12\x15\n" +
 	"\x06bid_id\x18\x02 \x01(\tR\x05bidId\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12!\n" +
-	"\famount_cents\x18\x04 \x01(\x03R\vamountCents\x12 \n" +
-	"\fclient_ts_ms\x18\x05 \x01(\x03R\n" +
-	"clientTsMs\"\x91\x02\n" +
+	"\famount_cents\x18\x04 \x01(\x03R\vamountCents\"\x91\x02\n" +
 	"\x10PlaceBidResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x1c\n" +
 	"\tduplicate\x18\x02 \x01(\bR\tduplicate\x12\x16\n" +
@@ -325,7 +315,7 @@ const file_auction_v1_auction_proto_rawDesc = "" +
 	"\x05Empty2\x9d\x01\n" +
 	"\x0eAuctionService\x12D\n" +
 	"\rCreateAuction\x12 .auction.v1.CreateAuctionRequest\x1a\x11.auction.v1.Empty\x12E\n" +
-	"\bPlaceBid\x12\x1b.auction.v1.PlaceBidRequest\x1a\x1c.auction.v1.PlaceBidResponseBBZ@github.com/Abhi1264/auctioneer/apps/api/gen/auction/v1;auctionv1b\x06proto3"
+	"\bPlaceBid\x12\x1b.auction.v1.PlaceBidRequest\x1a\x1c.auction.v1.PlaceBidResponseB>Z<github.com/Abhi1264/auctioneer/apps/api/auction/v1;auctionv1b\x06proto3"
 
 var (
 	file_auction_v1_auction_proto_rawDescOnce sync.Once

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -10,9 +9,9 @@ import (
 )
 
 func TestRedisStorePlaceBidIntegration(t *testing.T) {
-	addr := os.Getenv("REDIS_ADDR")
+	addr := config.RedisAddrFromEnv()
 	if addr == "" {
-		t.Skip("set REDIS_ADDR for integration test")
+		t.Skip("set REDIS_ADDR or REDIS_ADDRS for integration test")
 	}
 
 	cfg := config.Config{

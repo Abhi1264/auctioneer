@@ -1,8 +1,6 @@
 package obs
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -52,8 +50,4 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		m.StreamDispatchLag,
 	)
 	return m
-}
-
-func ObserveLatency(h prometheus.Histogram, start time.Time) {
-	h.Observe(time.Since(start).Seconds())
 }

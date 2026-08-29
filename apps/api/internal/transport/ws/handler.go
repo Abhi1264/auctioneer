@@ -59,10 +59,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.hub.Register(auctionID, client)
 
 	go h.writePump(client)
-	h.readPump(auctionID, client)
+	h.readPump(client)
 }
 
-func (h *Handler) readPump(_ string, c *Client) {
+func (h *Handler) readPump(c *Client) {
 	defer c.close()
 	for {
 		if _, _, err := c.conn.ReadMessage(); err != nil {

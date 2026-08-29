@@ -20,11 +20,15 @@ type Store interface {
 }
 
 type Service struct {
-	store Store
+	store           Store
+	defaultDuration time.Duration
 }
 
-func NewService(store Store) *Service {
-	return &Service{store: store}
+func NewService(store Store, defaultDuration time.Duration) *Service {
+	if defaultDuration <= 0 {
+		defaultDuration = 10 * time.Minute
+	}
+	return &Service{store: store, defaultDuration: defaultDuration}
 }
 
 func (s *Service) CreateAuction(ctx context.Context, req CreateAuctionRequest) error {
@@ -32,7 +36,7 @@ func (s *Service) CreateAuction(ctx context.Context, req CreateAuctionRequest) e
 		return ErrInvalidAuctionID
 	}
 	if req.EndAt.IsZero() {
-		req.EndAt = time.Now().UTC().Add(10 * time.Minute)
+		req.EndAt = time.Now().UTC().Add(s.defaultDuration)
 	}
 	return s.store.CreateAuction(ctx, req)
 }
@@ -51,8 +55,4 @@ func (s *Service) PlaceBid(ctx context.Context, req PlaceBidRequest) (PlaceBidRe
 		return PlaceBidResult{}, ErrInvalidAmount
 	}
 	return s.store.PlaceBid(ctx, req)
-}
-
-func (s *Service) ReadEvents(ctx context.Context, offsets map[string]string, count int64) ([]AuctionEvent, error) {
-	return s.store.ReadEvents(ctx, offsets, count)
 }
