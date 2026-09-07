@@ -18,11 +18,8 @@ export async function POST(request: Request) {
 
   let suite = parseSuite(undefined);
   try {
-    const body = (await request.json()) as { suite?: string };
-    suite = parseSuite(body.suite);
-  } catch {
-    suite = parseSuite(undefined);
-  }
+    suite = parseSuite((await request.json()).suite);
+  } catch {}
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

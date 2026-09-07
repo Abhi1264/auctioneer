@@ -19,9 +19,7 @@ function remember(report: TestReport, disk = false) {
   if (!disk) return;
   try {
     writeFileSync(REPORT_PATH, JSON.stringify(report));
-  } catch {
-    // Keep the in-memory copy even if the disk write fails.
-  }
+  } catch {}
 }
 
 export function getLatestReport(): TestReport | null {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CaretDown, Printer } from "@phosphor-icons/react";
 
@@ -54,22 +54,19 @@ export function InspectionDesk({
     };
   }, []);
 
-  const replaceQuery = useCallback(
-    (next: { suite?: Suite; view?: ViewFilter }) => {
-      const nextSuite = next.suite ?? suite;
-      const nextView = next.view ?? view;
-      if (next.suite !== undefined) setSuite(next.suite);
-      if (next.view !== undefined) setView(next.view);
-      const query = new URLSearchParams();
-      if (nextSuite === "redis") query.set("suite", nextSuite);
-      if (nextView !== "all") query.set("view", nextView);
-      const qs = query.toString();
-      router.replace(qs ? `/?${qs}` : "/", { scroll: false });
-    },
-    [router, suite, view],
-  );
+  function replaceQuery(next: { suite?: Suite; view?: ViewFilter }) {
+    const nextSuite = next.suite ?? suite;
+    const nextView = next.view ?? view;
+    if (next.suite !== undefined) setSuite(next.suite);
+    if (next.view !== undefined) setView(next.view);
+    const query = new URLSearchParams();
+    if (nextSuite === "redis") query.set("suite", nextSuite);
+    if (nextView !== "all") query.set("view", nextView);
+    const qs = query.toString();
+    router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+  }
 
-  const run = useCallback(async () => {
+  async function run() {
     if (busy) return;
     setBusy(true);
     setRunError(null);
@@ -128,15 +125,13 @@ export function InspectionDesk({
     } finally {
       setBusy(false);
     }
-  }, [busy, suite]);
+  }
 
-  const live = useMemo(() => {
-    if (!report) return "No inspection yet.";
-    if (report.status === "running") {
-      return `${report.passed + report.failed + report.skipped} finished, ${report.running} running.`;
-    }
-    return report.finding;
-  }, [report]);
+  const live = !report
+    ? "No inspection yet."
+    : report.status === "running"
+      ? `${report.passed + report.failed + report.skipped} finished, ${report.running} running.`
+      : report.finding;
 
   return (
     <>

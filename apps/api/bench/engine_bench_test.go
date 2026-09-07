@@ -42,7 +42,6 @@ func BenchmarkRedisPlaceBid(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	
 	for i := 0; b.Loop(); i++ {
 		_, err := svc.PlaceBid(ctx, engine.PlaceBidRequest{
 			AuctionID:   auctionID,
